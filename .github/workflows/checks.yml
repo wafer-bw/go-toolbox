@@ -23,8 +23,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Set up Go
-        working-directory: ${{ matrix.dir }}
         uses: actions/setup-go@v5
+        working-directory: ${{ matrix.dir }}
         with:
           go-version: ${{ matrix.go }}
           cache: true
@@ -51,14 +51,14 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Set up Go
-        working-directory: ${{ matrix.dir }}
         uses: actions/setup-go@v5
+        working-directory: ${{ matrix.dir }}
         with:
           go-version: ${{ matrix.go }}
           cache: true
       - name: Run go linting
-        working-directory: ${{ matrix.dir }}
         uses: golangci/golangci-lint-action@v4
+        working-directory: ${{ matrix.dir }}
         with:
           version: latest
           args: --timeout=4m
@@ -77,8 +77,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Set up Go
-        working-directory: ${{ matrix.dir }}
         uses: actions/setup-go@v5
+        working-directory: ${{ matrix.dir }}
         with:
           go-version: ${{ matrix.go }}
           cache: true
@@ -99,8 +99,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Set up Go
-        working-directory: ${{ matrix.dir }}
         uses: actions/setup-go@v5
+        working-directory: ${{ matrix.dir }}
         with:
           go-version: ${{ matrix.go }}
           cache: true
@@ -121,8 +121,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Set up Go
-        working-directory: ${{ matrix.dir }}
         uses: actions/setup-go@v5
+        working-directory: ${{ matrix.dir }}
         with:
           go-version: ${{ matrix.go }}
           cache: true
