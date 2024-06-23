@@ -1,2 +1,2 @@
 # go-toolbox
-A collection of Go modules 
+A collection of Go modules.
