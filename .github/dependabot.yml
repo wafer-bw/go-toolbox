@@ -1,0 +1,21 @@
+version: 2
+
+updates:
+
+  - package-ecosystem: "gomod"
+    directory: "/always"
+    schedule:
+      interval: "weekly"
+    registries:
+      - github-machine
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+
+registries:
+  github-machine:
+    type: git
+    url: https://github.com
+    username: x-access-token
+    password: ${{ secrets.REPO_READONLY_TOKEN }}
