@@ -13,6 +13,17 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: "gomod"
+    directory: "/probe"
+    schedule:
+      interval: "weekly"
+    registries:
+      - github-machine
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+
 registries:
   github-machine:
     type: git
