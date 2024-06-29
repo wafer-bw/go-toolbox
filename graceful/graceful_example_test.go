@@ -79,10 +79,10 @@ func ExampleGroup_visibleStages() {
 	}()
 
 	startErr := g.Start(ctx, syscall.SIGINT, syscall.SIGTERM)
-	fmt.Println("start error:", startErr)
+	fmt.Println("start error:", startErr) // nil here indicates a signal was received.
 
 	stopErr := g.Stop(ctx, 2*time.Second)
-	fmt.Println("stop error:", stopErr)
+	fmt.Println("stop error:", stopErr) // nil here indicates everything shutdown gracefully.
 	// Output:
 	// starting server
 	// start error: <nil>

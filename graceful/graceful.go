@@ -31,6 +31,9 @@ type Group []Runner
 // encounters an error, one of the provided signals is received via
 // [signal.NotifyContext], or the context provided to it is canceled, then
 // returns the first non-nil error (if any) or nil if a signal was received.
+//
+// An error returned from Start does not mean that all runners have stopped,
+// you must still call [Stop] for that.
 func (g Group) Start(ctx context.Context, signals ...os.Signal) error {
 	eg, errCtx := errgroup.WithContext(ctx)
 	signalCtx, stop := signal.NotifyContext(ctx, signals...)
