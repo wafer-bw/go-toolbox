@@ -1,7 +1,5 @@
 // Package graceful provides a way to run a group of goroutines and gracefully
 // stop them via context cancellation or signals.
-//
-// TODO: close errCh after all runners have stopped?
 package graceful
 
 import (
@@ -26,40 +24,29 @@ type Runner interface {
 
 // Group is used to run multiple [Runner]s concurrently and eventually
 // gracefully stop them.
-type Group struct {
-	Runners []Runner
-	errCh   chan error
-}
+type Group []Runner
 
-// Start all runners concurrently.
-func (g *Group) Start(ctx context.Context) {
-	g.errCh = make(chan error, len(g.Runners))
-
-	for _, runner := range g.Runners {
-		if runner == nil {
-			continue
-		}
-
-		go func(r Runner) {
-			if err := r.Start(ctx); err != nil {
-				g.errCh <- err
-			}
-		}(runner)
-	}
-}
-
-// Wait blocks until a Runner.Start encounters an error or one of the provided
-// signals is received via [signal.NotifyContext], then returns the first
-// non-nil error encountered by a [Runner], the context error if the provided
-// context is canceled, or nil if a signal is received.
-func (g *Group) Wait(ctx context.Context, signals ...os.Signal) error {
-	notifyCtx, stop := signal.NotifyContext(ctx, signals...)
+// Start all runners concurrently, then blocks until either Runner.Start call
+// encounters an error, one of the provided signals is received via
+// [signal.NotifyContext], or the context provided to it is canceled returning
+// the first encountered error or nil if a signal was received.
+func (g Group) Start(ctx context.Context, signals ...os.Signal) error {
+	eg, errCtx := errgroup.WithContext(ctx)
+	signalCtx, stop := signal.NotifyContext(ctx, signals...)
 	defer stop()
 
+	for _, r := range g {
+		if r == nil {
+			continue
+		}
+		r := r
+		eg.Go(func() error { return r.Start(ctx) })
+	}
+
 	select {
-	case err := <-g.errCh:
-		return err
-	case <-notifyCtx.Done():
+	case <-errCtx.Done():
+		return context.Cause(errCtx)
+	case <-signalCtx.Done():
 		return ctx.Err()
 	}
 }
@@ -69,18 +56,17 @@ func (g *Group) Wait(ctx context.Context, signals ...os.Signal) error {
 //
 // If a Runner.Stop does not complete before timeout the context passed to
 // it will cancel with [ShutdownTimeoutError] as the [context.Cause].
-func (g *Group) Stop(ctx context.Context, timeout time.Duration) error {
+func (g Group) Stop(ctx context.Context, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, ShutdownTimeoutError{})
 	defer cancel()
 
 	eg := new(errgroup.Group)
-	for _, runner := range g.Runners {
-		if runner == nil {
+	for _, r := range g {
+		if r == nil {
 			continue
 		}
-
-		runner := runner
-		eg.Go(func() error { return runner.Stop(ctx) })
+		r := r
+		eg.Go(func() error { return r.Stop(ctx) })
 	}
 
 	return eg.Wait()

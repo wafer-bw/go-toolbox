@@ -17,83 +17,45 @@ func TestGroup_Start(t *testing.T) {
 	t.Run("starts all runners", func(t *testing.T) {
 		t.Parallel()
 
-		runners := []graceful.Runner{
-			graceful.RunnerType{StartFunc: func(ctx context.Context) error { return nil }},
-			graceful.RunnerType{StartFunc: func(ctx context.Context) error { return nil }},
+		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+		defer cancel()
+
+		aCalled, bCalled := new(bool), new(bool)
+		g := graceful.Group{
+			graceful.RunnerType{StartFunc: func(ctx context.Context) error {
+				*aCalled = true
+				return nil
+			}},
+			graceful.RunnerType{StartFunc: func(ctx context.Context) error {
+				*bCalled = true
+				return nil
+			}},
 		}
-		g := graceful.Group{Runners: runners}
-		g.Start(context.Background())
+
+		err := g.Start(ctx, syscall.SIGTERM)
+		require.NoError(t, err)
+		require.True(t, *aCalled)
+		require.True(t, *bCalled)
 	})
 
-	// TODO: decide what this test needs to do and update it.
-	// t.Run("puts the first error encountered by a start call in the error channel and ignores the rest", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	// 	defer cancel()
-
-	// 	startErr := errors.New("start failed")
-	// 	runners := []graceful.Runner{
-	// 		graceful.RunnerType{StartFunc: func(ctx context.Context) error { return startErr }},
-	// 		graceful.RunnerType{StartFunc: func(ctx context.Context) error { return startErr }},
-	// 		graceful.RunnerType{StartFunc: func(ctx context.Context) error { return startErr }},
-	// 	}
-	// 	g := graceful.Group{Runners: runners}
-
-	// 	g.Start(context.Background())
-	// 	err := <-g.ErrCh()
-	// 	require.Error(t, err)
-	// 	require.Equal(t, startErr, err)
-	// 	select {
-	// 	case <-g.ErrCh():
-	// 		t.Fatal("unexpected error in error channel")
-	// 	case <-ctx.Done():
-	// 		// pass
-	// 	}
-	// })
-
-	t.Run("does not panic when runners are nil", func(t *testing.T) {
-		t.Parallel()
-
-		g := graceful.Group{Runners: []graceful.Runner{nil, nil, nil}}
-		require.NotPanics(t, func() { g.Start(context.Background()) })
-	})
-
-	t.Run("does not panic when runners list is empty", func(t *testing.T) {
-		t.Parallel()
-
-		g := graceful.Group{Runners: []graceful.Runner{}}
-		require.NotPanics(t, func() { g.Start(context.Background()) })
-	})
-
-	t.Run("does not panic when runners list is nil", func(t *testing.T) {
-		t.Parallel()
-
-		g := graceful.Group{Runners: nil}
-		require.NotPanics(t, func() { g.Start(context.Background()) })
-	})
-}
-
-func TestGroup_Wait(t *testing.T) {
-	t.Parallel()
-
-	t.Run("blocks until it receives an error then returns it", func(t *testing.T) {
+	t.Run("returns first runner start error encountered", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 		defer cancel()
 
 		startErr := errors.New("start failed")
-		g := graceful.Group{}
-		g.CreateErrCh(1)
-		g.ErrCh() <- startErr
+		g := graceful.Group{
+			graceful.RunnerType{StartFunc: func(ctx context.Context) error { return startErr }},
+			graceful.RunnerType{StartFunc: func(ctx context.Context) error { return startErr }},
+		}
 
-		err := g.Wait(ctx, syscall.SIGTERM)
+		err := g.Start(ctx, syscall.SIGTERM)
 		require.Error(t, err)
 		require.Equal(t, startErr, err)
 	})
 
-	t.Run("blocks until signal is received then returns nil", func(t *testing.T) {
+	t.Run("returns nil when a signal is received", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -105,19 +67,19 @@ func TestGroup_Wait(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		err := g.Wait(ctx, syscall.SIGTERM)
+		err := g.Start(ctx, syscall.SIGTERM)
 		require.NoError(t, err)
 		require.NoError(t, ctx.Err())
 	})
 
-	t.Run("returns context canceled error if encountered error", func(t *testing.T) {
+	t.Run("returns context canceled error if encountered", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		g := graceful.Group{}
 
-		err := g.Wait(ctx, syscall.SIGTERM)
+		err := g.Start(ctx, syscall.SIGTERM)
 		require.Error(t, err)
 		require.Equal(t, context.Canceled, err)
 	})
@@ -129,11 +91,30 @@ func TestGroup_Wait(t *testing.T) {
 		defer cancel()
 		g := graceful.Group{}
 
-		err := g.Wait(ctx, syscall.SIGTERM)
+		err := g.Start(ctx, syscall.SIGTERM)
 		require.Error(t, err)
 		require.Equal(t, context.DeadlineExceeded, err)
 	})
 
+	t.Run("does not panic when runners are nil", func(t *testing.T) {
+		t.Parallel()
+
+		g := graceful.Group{nil, nil, nil}
+		require.NotPanics(t, func() {
+			err := g.Start(context.Background())
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("does not panic when slice is empty", func(t *testing.T) {
+		t.Parallel()
+
+		g := graceful.Group{}
+		require.NotPanics(t, func() {
+			err := g.Start(context.Background())
+			require.NoError(t, err)
+		})
+	})
 }
 
 func TestGroup_Stop(t *testing.T) {
@@ -143,7 +124,7 @@ func TestGroup_Stop(t *testing.T) {
 		t.Parallel()
 
 		aCalled, bCalled := new(bool), new(bool)
-		runners := []graceful.Runner{
+		g := graceful.Group{
 			graceful.RunnerType{StopFunc: func(ctx context.Context) error {
 				*aCalled = true
 				return nil
@@ -153,11 +134,23 @@ func TestGroup_Stop(t *testing.T) {
 				return nil
 			}},
 		}
-		g := graceful.Group{Runners: runners}
 		err := g.Stop(context.Background(), 25*time.Millisecond)
 		require.NoError(t, err)
 		require.True(t, *aCalled)
 		require.True(t, *bCalled)
+	})
+
+	t.Run("returns first runner stop error encountered", func(t *testing.T) {
+		t.Parallel()
+
+		stopErr := errors.New("stop failed")
+		g := graceful.Group{
+			graceful.RunnerType{StopFunc: func(ctx context.Context) error { return stopErr }},
+			graceful.RunnerType{StopFunc: func(ctx context.Context) error { return stopErr }},
+		}
+		err := g.Stop(context.Background(), 25*time.Millisecond)
+		require.Error(t, err)
+		require.Equal(t, stopErr, err)
 	})
 
 	t.Run("sets context cause to shutdown timeout error if it times out", func(t *testing.T) {
@@ -166,13 +159,14 @@ func TestGroup_Stop(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
-		runners := []graceful.Runner{
-			graceful.RunnerType{StopFunc: func(ctx context.Context) error {
-				<-ctx.Done()
-				return context.Cause(ctx)
-			}},
+		g := graceful.Group{
+			graceful.RunnerType{
+				StopFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return context.Cause(ctx)
+				},
+			},
 		}
-		g := graceful.Group{Runners: runners}
 		err := g.Stop(ctx, 25*time.Millisecond)
 		require.Error(t, err)
 		require.ErrorIs(t, err, graceful.ShutdownTimeoutError{})
@@ -181,27 +175,17 @@ func TestGroup_Stop(t *testing.T) {
 	t.Run("does not panic when runners are nil", func(t *testing.T) {
 		t.Parallel()
 
-		g := graceful.Group{Runners: []graceful.Runner{nil, nil, nil}}
+		g := graceful.Group{nil, nil, nil}
 		require.NotPanics(t, func() {
 			err := g.Stop(context.Background(), 25*time.Millisecond)
 			require.NoError(t, err)
 		})
 	})
 
-	t.Run("does not panic when runners list is empty", func(t *testing.T) {
+	t.Run("does not panic when slice is empty", func(t *testing.T) {
 		t.Parallel()
 
-		g := graceful.Group{Runners: []graceful.Runner{}}
-		require.NotPanics(t, func() {
-			err := g.Stop(context.Background(), 25*time.Millisecond)
-			require.NoError(t, err)
-		})
-	})
-
-	t.Run("does not panic when runners list is nil", func(t *testing.T) {
-		t.Parallel()
-
-		g := graceful.Group{Runners: nil}
+		g := graceful.Group{}
 		require.NotPanics(t, func() {
 			err := g.Stop(context.Background(), 25*time.Millisecond)
 			require.NoError(t, err)
