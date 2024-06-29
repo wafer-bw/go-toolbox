@@ -89,7 +89,7 @@ func TestGroup_Start(t *testing.T) {
 	t.Run("returns context deadline error if encountered", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 		defer cancel()
 		g := graceful.Group{}
 
