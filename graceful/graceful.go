@@ -78,9 +78,8 @@ func (g Group) Stop(ctx context.Context, timeout time.Duration) error {
 
 // RunnerType is an adapter type to allow the use of ordinary start and stop
 // functions as a [Runner].
-//
-// A nil StartFunc will immediately return nil.
-// A nil StopFunc will immediately return nil.
+//   - A nil StartFunc will immediately return nil.
+//   - A nil StopFunc will immediately return nil.
 type RunnerType struct {
 	StartFunc func(context.Context) error
 	StopFunc  func(context.Context) error
