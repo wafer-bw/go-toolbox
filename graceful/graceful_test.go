@@ -20,22 +20,24 @@ func TestGroup_Start(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 		defer cancel()
 
-		aCalled, bCalled := new(bool), new(bool)
+		aCh, bCh := make(chan struct{}), make(chan struct{})
 		g := graceful.Group{
 			graceful.RunnerType{StartFunc: func(ctx context.Context) error {
-				*aCalled = true
+				close(aCh)
 				return nil
 			}},
 			graceful.RunnerType{StartFunc: func(ctx context.Context) error {
-				*bCalled = true
+				close(bCh)
 				return nil
 			}},
 		}
 
 		err := g.Start(ctx, syscall.SIGTERM)
 		require.NoError(t, err)
-		require.True(t, *aCalled)
-		require.True(t, *bCalled)
+		_, aOpen := <-aCh
+		require.False(t, aOpen)
+		_, bOpen := <-bCh
+		require.False(t, bOpen)
 	})
 
 	t.Run("returns first runner start error encountered", func(t *testing.T) {
@@ -123,21 +125,23 @@ func TestGroup_Stop(t *testing.T) {
 	t.Run("stops all runners", func(t *testing.T) {
 		t.Parallel()
 
-		aCalled, bCalled := new(bool), new(bool)
+		aCh, bCh := make(chan struct{}), make(chan struct{})
 		g := graceful.Group{
 			graceful.RunnerType{StopFunc: func(ctx context.Context) error {
-				*aCalled = true
+				close(aCh)
 				return nil
 			}},
 			graceful.RunnerType{StopFunc: func(ctx context.Context) error {
-				*bCalled = true
+				close(bCh)
 				return nil
 			}},
 		}
 		err := g.Stop(context.Background(), 25*time.Millisecond)
 		require.NoError(t, err)
-		require.True(t, *aCalled)
-		require.True(t, *bCalled)
+		_, aOpen := <-aCh
+		require.False(t, aOpen)
+		_, bOpen := <-bCh
+		require.False(t, bOpen)
 	})
 
 	t.Run("returns first runner stop error encountered", func(t *testing.T) {
