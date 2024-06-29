@@ -7,7 +7,6 @@ package graceful
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -55,9 +54,9 @@ func (g *Group) Start(ctx context.Context) {
 	}
 }
 
-// Wait blocks until a runner encounters an error or one of the provided signals
-// is received, then returns the first non-nil error encountered by
-// a runner or nil.
+// Wait blocks until a Runner.Start encounters an error or one of the provided
+// signals is received via [signal.NotifyContext], then returns the first
+// non-nil error encountered by a runner or nil.
 func (g *Group) Wait(ctx context.Context, signals ...os.Signal) error {
 	ctx, stop := signal.NotifyContext(ctx, signals...)
 	defer stop()
@@ -66,10 +65,7 @@ func (g *Group) Wait(ctx context.Context, signals ...os.Signal) error {
 	case err := <-g.errCh:
 		return err
 	case <-ctx.Done():
-		fmt.Println("wait ending bc context done")
-		fmt.Println(ctx.Err())
-		fmt.Println(context.Cause(ctx))
-		return nil // TODO: return the ctx err?
+		return nil
 	}
 }
 

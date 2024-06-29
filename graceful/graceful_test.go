@@ -110,13 +110,13 @@ func TestGroup_Wait(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 		g := graceful.Group{}
-
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
 			require.NoError(t, err)
 		}()
-		err := g.Wait(ctx)
+
+		err := g.Wait(ctx, syscall.SIGTERM)
 		require.NoError(t, err)
 		require.NoError(t, ctx.Err())
 	})
