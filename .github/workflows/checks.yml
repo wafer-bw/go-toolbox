@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
@@ -44,7 +44,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
@@ -68,7 +68,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
@@ -80,7 +80,7 @@ jobs:
           cache: true
       - name: Run tests
         working-directory: ${{ matrix.dir }}
-        run: go test -shuffle=on -v -count=1 -race -failfast -timeout=30s -short -covermode=atomic -coverprofile=coverage.out ./...
+        run: go test -shuffle=on -v -count=1 -race -failfast -timeout=30s -covermode=atomic -coverprofile=coverage.out ./...
 
   benchmark:
     name: benchmark
@@ -89,7 +89,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
@@ -110,7 +110,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
