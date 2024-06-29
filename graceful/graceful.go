@@ -1,7 +1,6 @@
 // Package graceful provides a way to run a group of goroutines and gracefully
 // stop them via context cancellation or signals.
 //
-// TODO: examples
 // TODO: close errCh after all runners have stopped?
 package graceful
 
@@ -16,8 +15,8 @@ import (
 
 // Runner is capable of starting and stopping itself.
 type Runner interface {
-	// Start must complete within the lifetime of the context passed to it,
-	// respecting the context's deadline.
+	// Start must either complete within the lifetime of the context passed to
+	// it, respecting the context's deadline or terminate when Stop is called.
 	Start(context.Context) error
 
 	// Stop must complete within the lifetime of the context passed to it,
@@ -43,12 +42,7 @@ func (g *Group) Start(ctx context.Context) {
 
 		go func(r Runner) {
 			if err := r.Start(ctx); err != nil {
-				select { // TODO: use errgroup.Group instead?
-				case g.errCh <- err:
-					return
-				default:
-					return
-				}
+				g.errCh <- err
 			}
 		}(runner)
 	}
@@ -56,16 +50,17 @@ func (g *Group) Start(ctx context.Context) {
 
 // Wait blocks until a Runner.Start encounters an error or one of the provided
 // signals is received via [signal.NotifyContext], then returns the first
-// non-nil error encountered by a runner or nil.
+// non-nil error encountered by a [Runner], the context error if the provided
+// context is canceled, or nil if a signal is received.
 func (g *Group) Wait(ctx context.Context, signals ...os.Signal) error {
-	ctx, stop := signal.NotifyContext(ctx, signals...)
+	notifyCtx, stop := signal.NotifyContext(ctx, signals...)
 	defer stop()
 
 	select {
 	case err := <-g.errCh:
 		return err
-	case <-ctx.Done():
-		return nil
+	case <-notifyCtx.Done():
+		return ctx.Err()
 	}
 }
 
