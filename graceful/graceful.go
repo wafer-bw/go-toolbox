@@ -55,8 +55,8 @@ func (g Group) Start(ctx context.Context, signals ...os.Signal) error {
 	}
 }
 
-// Stop all [Runner] concurrently, blocking until all calls have returned,
-// then returns the first non-nil error (if any) from them.
+// Stop all [Runner] concurrently, blocking until all Runner.Stop calls have
+// returned, then returns the first non-nil error (if any) from them.
 //
 // If a Runner.Stop does not complete before timeout the context passed to
 // it will cancel with [ShutdownTimeoutError] as the [context.Cause].
