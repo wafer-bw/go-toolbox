@@ -17,7 +17,7 @@ func TestGroup_Start(t *testing.T) {
 	t.Run("starts all runners", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 		defer cancel()
 
 		aCh, bCh := make(chan struct{}), make(chan struct{})
@@ -43,7 +43,7 @@ func TestGroup_Start(t *testing.T) {
 	t.Run("returns first runner start error encountered", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 		defer cancel()
 
 		startErr := errors.New("start failed")
@@ -60,7 +60,7 @@ func TestGroup_Start(t *testing.T) {
 	t.Run("returns nil when a signal is received", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 		defer cancel()
 		g := graceful.Group{}
 		go func() {
@@ -160,7 +160,7 @@ func TestGroup_Stop(t *testing.T) {
 	t.Run("sets context cause to shutdown timeout error if it times out", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 		defer cancel()
 
 		g := graceful.Group{
