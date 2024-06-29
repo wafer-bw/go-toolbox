@@ -1,5 +1,5 @@
-// Package graceful provides a way to run a group of goroutines and gracefully
-// stop them via context cancellation or signals.
+// Package graceful provides a type used to run a group of goroutines and
+// gracefully stop them via context cancellation or signals.
 package graceful
 
 import (
@@ -22,14 +22,15 @@ type Runner interface {
 	Stop(context.Context) error
 }
 
-// Group is used to run multiple [Runner]s concurrently and eventually
-// gracefully stop them.
+// Group of [Runner] that should run concurrently together via a single call
+// point and stop gracefully should one of them encounter an error or the
+// application receive a signal.
 type Group []Runner
 
-// Start all runners concurrently, then blocks until either Runner.Start call
+// Start all [Runner] concurrently, blocking until either a Runner.Start call
 // encounters an error, one of the provided signals is received via
-// [signal.NotifyContext], or the context provided to it is canceled returning
-// the first encountered error or nil if a signal was received.
+// [signal.NotifyContext], or the context provided to it is canceled, then
+// returns the first non-nil error (if any) or nil if a signal was received.
 func (g Group) Start(ctx context.Context, signals ...os.Signal) error {
 	eg, errCtx := errgroup.WithContext(ctx)
 	signalCtx, stop := signal.NotifyContext(ctx, signals...)
@@ -51,8 +52,8 @@ func (g Group) Start(ctx context.Context, signals ...os.Signal) error {
 	}
 }
 
-// Stop blocks until all Runner.Stop calls have returned, then returns the first
-// non-nil (if any) from them.
+// Stop all [Runner] concurrently, blocking until all calls have returned,
+// then returns the first non-nil error (if any) from them.
 //
 // If a Runner.Stop does not complete before timeout the context passed to
 // it will cancel with [ShutdownTimeoutError] as the [context.Cause].
@@ -75,8 +76,8 @@ func (g Group) Stop(ctx context.Context, timeout time.Duration) error {
 // RunnerType is an adapter type to allow the use of ordinary start and stop
 // functions as a [Runner].
 //
-// A nil StartFunc will be a no-op start function.
-// A nil StopFunc will be a no-op stop function.
+// A nil StartFunc will immediately return nil.
+// A nil StopFunc will immediately return nil.
 type RunnerType struct {
 	StartFunc func(context.Context) error
 	StopFunc  func(context.Context) error
@@ -96,9 +97,6 @@ func (r RunnerType) Stop(ctx context.Context) error {
 	return r.StopFunc(ctx)
 }
 
-// ShutdownTimeoutError is set as the context cause when a [Runner] is
-// unable to complete Runner.Stop before Group.StopTimeout during execution
-// of [Group.Stop].
 type ShutdownTimeoutError struct{}
 
 func (ShutdownTimeoutError) Error() string {
