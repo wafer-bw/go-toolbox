@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
@@ -44,7 +44,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
@@ -68,7 +68,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
@@ -89,7 +89,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
@@ -110,7 +110,7 @@ jobs:
     strategy:
       matrix:
         go: [stable]
-        dir: ['always', 'probe']
+        dir: ['always', 'probe', 'graceful']
       fail-fast: true
     steps:
       - name: Checkout repo
