@@ -25,7 +25,7 @@ func TestGroup_Start(t *testing.T) {
 		g.Start(context.Background())
 	})
 
-	// TODO: fix this test.
+	// TODO: decide what this test needs to do and update it.
 	// t.Run("puts the first error encountered by a start call in the error channel and ignores the rest", func(t *testing.T) {
 	// 	t.Parallel()
 
@@ -85,9 +85,8 @@ func TestGroup_Wait(t *testing.T) {
 
 		startErr := errors.New("start failed")
 		g := graceful.Group{}
-		go func() {
-			g.ErrCh() <- startErr
-		}()
+		g.CreateErrCh(1)
+		g.ErrCh() <- startErr
 
 		err := g.Wait(ctx, syscall.SIGTERM)
 		require.Error(t, err)

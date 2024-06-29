@@ -16,10 +16,10 @@ import (
 // Runner is capable of starting and stopping itself.
 type Runner interface {
 	// Start must either complete within the lifetime of the context passed to
-	// it, respecting the context's deadline or terminate when Stop is called.
+	// it respecting the context's deadline or terminate when Stop is called.
 	Start(context.Context) error
 
-	// Stop must complete within the lifetime of the context passed to it,
+	// Stop must complete within the lifetime of the context passed to it
 	// respecting the context's deadline.
 	Stop(context.Context) error
 }
@@ -33,7 +33,7 @@ type Group struct {
 
 // Start all runners concurrently.
 func (g *Group) Start(ctx context.Context) {
-	g.errCh = make(chan error)
+	g.errCh = make(chan error, len(g.Runners))
 
 	for _, runner := range g.Runners {
 		if runner == nil {
