@@ -11,6 +11,40 @@ import (
 	"github.com/wafer-bw/go-toolbox/graceful"
 )
 
+func TestGroup_Run(t *testing.T) {
+	t.Parallel()
+
+	t.Run("calls start and stop in sequence returning the error from start", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		defer cancel()
+
+		startErr := errors.New("start failed")
+		aCh, bCh := make(chan struct{}), make(chan struct{})
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(aCh)
+					return startErr
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(bCh)
+					return nil
+				},
+			},
+		}
+
+		err := g.Run(ctx, 25*time.Millisecond)
+		require.Error(t, err)
+		require.Equal(t, startErr, err)
+		_, aOpen := <-aCh
+		require.False(t, aOpen)
+		_, bOpen := <-bCh
+		require.False(t, bOpen)
+	})
+}
+
 func TestGroup_Start(t *testing.T) {
 	t.Parallel()
 

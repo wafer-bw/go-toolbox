@@ -1,5 +1,5 @@
-// Package graceful provides a type used to run a group of goroutines and
-// gracefully stop them via context cancellation or signals.
+// Package graceful provides mechanisms for starting and stopping groups of
+// primarily used to accomplish a graceful shutdown.
 package graceful
 
 import (
@@ -26,6 +26,14 @@ type Runner interface {
 // point and stop gracefully should one of them encounter an error or the
 // application receive a signal.
 type Group []Runner
+
+// Run is a convenience method that calls [Group.Start] & [Group.Stop] in
+// sequence returning the error (if any) from [Group.Start] and ignoring the
+// error (if any) from [Group.Stop].
+func (g Group) Run(ctx context.Context, timeout time.Duration, signals ...os.Signal) error {
+	defer g.Stop(ctx, timeout) //nolint:errcheck // intentionally ignored.
+	return g.Start(ctx, signals...)
+}
 
 // Start all [Runner] concurrently, blocking until either a Runner.Start call
 // encounters an error, one of the provided signals is received via

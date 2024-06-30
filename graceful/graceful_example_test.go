@@ -5,11 +5,49 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"syscall"
 	"time"
 
 	"github.com/wafer-bw/go-toolbox/graceful"
 )
+
+// RunnerServer is an example type that satisfies the [Runner] interface.
+// In this case it is a simple wrapper around an http.Server but it could be
+// a more complex type of your own design that happens to have Start and Stop
+// methods.
+type RunnerServer struct {
+	http.Server
+}
+
+func (r *RunnerServer) Start(ctx context.Context) error {
+	return r.ListenAndServe()
+}
+
+func (r *RunnerServer) Stop(ctx context.Context) error {
+	return r.Shutdown(ctx)
+}
+
+// Run demonstrates how to use [Group.Run] in a more realistic real-world
+// scenario than the examples provided for [Group] as a whole.
+//
+// Remember to adjust the shutdownTimeout and exitSignals to suit your
+// application's needs.
+func ExampleGroup_Run() {
+	ctx := context.Background()
+
+	shutdownTimeout := 250 * time.Millisecond
+	exitSignals := []os.Signal{syscall.SIGINT, syscall.SIGTERM}
+
+	metricsServer := &RunnerServer{http.Server{Addr: ":8001"}}
+	applicationServer := &RunnerServer{http.Server{Addr: ":8002"}}
+
+	runners := graceful.Group{metricsServer, applicationServer}
+
+	if err := runners.Run(ctx, shutdownTimeout, exitSignals...); err != nil {
+		log.Println(err)
+	}
+}
 
 // Demonstrates how to use the graceful package in a simple real-world scenario.
 func ExampleGroup() {
