@@ -28,8 +28,8 @@ func (r *RunnerServer) Stop(ctx context.Context) error {
 	return r.Shutdown(ctx)
 }
 
-// Run demonstrates how to use [Group.Run] in a more realistic real-world
-// scenario than the examples provided for [Group] as a whole.
+// Demonstrates how to use [Group.Run] in a more realistic real-world scenario
+// than the examples provided for [Group] as a whole.
 //
 // Remember to adjust the shutdownTimeout and exitSignals to suit your
 // application's needs.
