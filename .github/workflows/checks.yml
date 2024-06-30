@@ -86,7 +86,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           working-directory: ${{ matrix.dir }}
-          directory: ${{ matrix.dir }}
 
   benchmark:
     name: benchmark
