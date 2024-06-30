@@ -1,5 +1,5 @@
 // Package graceful provides mechanisms for starting and stopping groups of
-// primarily used to accomplish a graceful shutdown.
+// services, primarily used to accomplish a graceful shutdown.
 package graceful
 
 import (
