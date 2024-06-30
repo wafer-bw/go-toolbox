@@ -81,6 +81,11 @@ jobs:
       - name: Run tests
         working-directory: ${{ matrix.dir }}
         run: go test -shuffle=on -v -count=1 -race -failfast -timeout=30s -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Codecov Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          working-directory: ${{ matrix.dir }}
 
   benchmark:
     name: benchmark
