@@ -12,7 +12,7 @@ import (
 	"github.com/wafer-bw/go-toolbox/graceful"
 )
 
-// RunnerServer is an example type that satisfies the [Runner] interface.
+// RunnerServer is an example type that satisfies the graceful.Runner interface.
 // In this case it is a simple wrapper around an http.Server but it could be
 // a more complex type of your own design that happens to have Start and Stop
 // methods.
