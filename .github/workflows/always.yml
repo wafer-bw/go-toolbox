@@ -6,13 +6,13 @@ on:
       - "main"
     paths:
       - "always/**"
-      - "workflows/always.yml"
+      - ".github/workflows/always.yml"
   pull_request:
     branches:
       - "*"
     paths:
       - "always/**"
-      - "workflows/always.yml"
+      - ".github/workflows/always.yml"
 
 jobs:
 
