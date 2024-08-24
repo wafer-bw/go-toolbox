@@ -1,0 +1,134 @@
+name: check-graceful
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "graceful/**"
+      - ".github/workflows/graceful.yml"
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - "graceful/**"
+      - ".github/workflows/graceful.yml"
+
+jobs:
+
+  clean:
+    name: clean
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go mod tidy
+        working-directory: graceful
+        run: go mod tidy && git diff --exit-code
+      - name: Run go mod verify
+        working-directory: graceful
+        run: go mod verify
+      - name: Run formatting
+        working-directory: graceful
+        run: go run golang.org/x/tools/cmd/goimports@latest -w . && git diff --exit-code
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go linting
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=4m
+          working-directory: graceful
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run tests
+        working-directory: graceful
+        run: go test -shuffle=on -v -count=1 -race -failfast -timeout=30s -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Codecov Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          working-directory: graceful
+
+  benchmark:
+    name: benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run benchmarks
+        working-directory: graceful
+        run: go test -v -shuffle=on -run=- -bench=. -benchtime=1x -timeout=10s ./...
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go generate
+        working-directory: graceful
+        run: go generate ./... && git diff --exit-code
+      - name: Run go build
+        working-directory: graceful
+        run: go build -o /dev/null ./...
