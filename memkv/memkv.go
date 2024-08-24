@@ -6,13 +6,18 @@ import (
 	"github.com/wafer-bw/go-toolbox/memkv/internal/underlying"
 )
 
-type Store[K comparable, V any] struct { // TODO: docstring.
+// Store is a generic in-memory key-value store.
+type Store[K comparable, V any] struct {
 	mu       *sync.RWMutex
 	capacity int
 	data     *underlying.Data[K, V]
 }
 
-func New[K comparable, V any](capacity int) *Store[K, V] { // TODO: docstring.
+// New creates a new instance of [Store] with the provided capacity.
+//
+//   - A capacity of zero means the store has no capacity limit.
+//   - If the capacity is less than 0, it will be set to 0.
+func New[K comparable, V any](capacity int) *Store[K, V] {
 	if capacity < 0 {
 		capacity = 0
 	}
@@ -26,7 +31,8 @@ func New[K comparable, V any](capacity int) *Store[K, V] { // TODO: docstring.
 	}
 }
 
-func (s Store[K, V]) Set(key K, val V) error { // TODO: docstring.
+// Set the provided key-value pair in the store.
+func (s Store[K, V]) Set(key K, val V) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -39,7 +45,8 @@ func (s Store[K, V]) Set(key K, val V) error { // TODO: docstring.
 	return nil
 }
 
-func (s Store[K, V]) Get(key K) (V, bool) { // TODO: docstring.
+// Get the value associated with the provided key from the store if it exists.
+func (s Store[K, V]) Get(key K) (V, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -48,7 +55,8 @@ func (s Store[K, V]) Get(key K) (V, bool) { // TODO: docstring.
 	return item.Value, ok
 }
 
-func (s Store[K, V]) Delete(keys ...K) { // TODO: docstring.
+// Delete provided keys from the store.
+func (s Store[K, V]) Delete(keys ...K) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -57,21 +65,24 @@ func (s Store[K, V]) Delete(keys ...K) { // TODO: docstring.
 	}
 }
 
-func (s Store[K, V]) Flush() { // TODO: docstring.
+// Flush the cache, deleting all keys.
+func (s Store[K, V]) Flush() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	clear(s.data.Items)
 }
 
-func (s Store[K, V]) Len() int { // TODO: docstring.
+// Len returns the number of items currently in the store.
+func (s Store[K, V]) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	return len(s.data.Items)
 }
 
-func (s Store[K, V]) Items() map[K]V { // TODO: docstring.
+// Items returns a map of all items currently in the store.
+func (s Store[K, V]) Items() map[K]V {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -83,7 +94,8 @@ func (s Store[K, V]) Items() map[K]V { // TODO: docstring.
 	return items
 }
 
-func (s Store[K, V]) Keys() []K { // TODO: docstring.
+// Keys returns a slice of all keys currently in the store.
+func (s Store[K, V]) Keys() []K {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -95,7 +107,8 @@ func (s Store[K, V]) Keys() []K { // TODO: docstring.
 	return keys
 }
 
-func (s Store[K, V]) Values() []V { // TODO: docstring.
+// Values returns a slice of all values currently in the store.
+func (s Store[K, V]) Values() []V {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
