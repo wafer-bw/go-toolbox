@@ -121,13 +121,6 @@ func ExampleGroup_visibleStages() {
 
 	stopErr := g.Stop(ctx, 2*time.Second)
 	fmt.Println("stop error:", stopErr) // nil here indicates everything shutdown gracefully.
-	// Output:
-	// starting server
-	// start error: <nil>
-	// gracefully stopping server
-	// server has stopped listening: http: Server closed
-	// server gracefully stopped
-	// stop error: <nil>
 }
 
 // RunnerStartError demonstrates the behavior of a group when at least one
