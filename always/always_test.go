@@ -2,7 +2,6 @@ package always_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/wafer-bw/go-toolbox/always"
@@ -21,7 +20,7 @@ func TestMust(t *testing.T) {
 
 		defer func() {
 			if r := recover(); r != nil {
-				t.Errorf(fmt.Sprintf("func always.Must(%T) should not panic\n\tPanic value: %v", input, r))
+				t.Errorf("func always.Must(%T) should not panic\n\tPanic value: %v", input, r)
 			}
 		}()
 
@@ -66,7 +65,7 @@ func TestMustDo(t *testing.T) {
 
 		defer func() {
 			if r := recover(); r != nil {
-				t.Errorf(fmt.Sprintf("func always.Must(%T) should not panic\n\tPanic value: %v", input, r))
+				t.Errorf("func always.Must(%T) should not panic\n\tPanic value: %v", input, r)
 			}
 		}()
 
