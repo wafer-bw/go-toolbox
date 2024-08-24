@@ -1,0 +1,134 @@
+name: check-memkv
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "memkv/**"
+      - ".github/workflows/memkv.yml"
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - "memkv/**"
+      - ".github/workflows/memkv.yml"
+
+jobs:
+
+  clean:
+    name: clean
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go mod tidy
+        working-directory: memkv
+        run: go mod tidy && git diff --exit-code
+      - name: Run go mod verify
+        working-directory: memkv
+        run: go mod verify
+      - name: Run formatting
+        working-directory: memkv
+        run: go run golang.org/x/tools/cmd/goimports@latest -w . && git diff --exit-code
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go linting
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=4m
+          working-directory: memkv
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run tests
+        working-directory: memkv
+        run: go test -shuffle=on -v -count=1 -race -failfast -timeout=30s -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Codecov Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          working-directory: memkv
+
+  benchmark:
+    name: benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run benchmarks
+        working-directory: memkv
+        run: go test -v -shuffle=on -run=- -bench=. -benchtime=1x -timeout=10s ./...
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go generate
+        working-directory: memkv
+        run: go generate ./... && git diff --exit-code
+      - name: Run go build
+        working-directory: memkv
+        run: go build -o /dev/null ./...
