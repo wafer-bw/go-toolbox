@@ -1,4 +1,4 @@
-name: checks
+name: check-always
 
 on:
   push:
