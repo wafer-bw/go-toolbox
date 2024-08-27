@@ -1,3 +1,4 @@
+// Package memkv provides a generic in-memory key-value store.
 package memkv
 
 import (
@@ -8,6 +9,7 @@ import (
 
 // Store is a generic in-memory key-value store.
 type Store[K comparable, V any] struct {
+	// TODO: should this be part of the underlying data?
 	mu       *sync.RWMutex
 	capacity int
 	data     *underlying.Data[K, V]

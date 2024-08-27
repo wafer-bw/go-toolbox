@@ -1,5 +1,9 @@
 // Package underlying provides the underlying data structures for the key-value
 // store.
+//
+// This makes it easy to extend out the data structures in the future and
+// enables easy testing of the store's underlying data via memkv.Store.Data
+// (see memkv_export_test.go).
 package underlying
 
 // Item is a wrapper around the instances of data to be stored allowing for
