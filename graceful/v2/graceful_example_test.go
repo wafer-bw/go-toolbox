@@ -12,6 +12,12 @@ import (
 	"github.com/wafer-bw/go-toolbox/graceful/v2"
 )
 
+const (
+	addr1 string = ":6001"
+	addr2 string = ":6002"
+	addr3 string = ":6003"
+)
+
 // RunnerServer is an example type that satisfies the graceful.Runner interface.
 // In this case it is a simple wrapper around an http.Server but it could be
 // a more complex type of your own design that happens to have Start and Stop
@@ -39,8 +45,8 @@ func ExampleGroup_Run() {
 	shutdownTimeout := 250 * time.Millisecond
 	exitSignals := []os.Signal{syscall.SIGINT, syscall.SIGTERM}
 
-	metricsServer := &RunnerServer{http.Server{Addr: ":8001"}}
-	applicationServer := &RunnerServer{http.Server{Addr: ":8002"}}
+	metricsServer := &RunnerServer{http.Server{Addr: addr1}}
+	applicationServer := &RunnerServer{http.Server{Addr: addr2}}
 
 	runners := graceful.Group{
 		Runners:         []graceful.Runner{metricsServer, applicationServer},
@@ -57,8 +63,8 @@ func ExampleGroup_Run() {
 func ExampleGroup() {
 	ctx := context.Background()
 
-	s1 := http.Server{Addr: ":8001"}
-	s2 := http.Server{Addr: ":8002"}
+	s1 := http.Server{Addr: addr1}
+	s2 := http.Server{Addr: addr2}
 
 	g := graceful.Group{
 		Runners: []graceful.Runner{
@@ -97,7 +103,7 @@ func ExampleGroup() {
 func ExampleGroup_visibleStages() {
 	ctx := context.Background()
 
-	s := http.Server{Addr: ":8000"}
+	s := http.Server{Addr: addr1}
 
 	g := graceful.Group{
 		Runners: []graceful.Runner{
@@ -140,9 +146,9 @@ func ExampleGroup_visibleStages() {
 func ExampleGroup_runnerStartError() {
 	ctx := context.Background()
 
-	s1 := http.Server{Addr: "-1:8001"}
-	s2 := http.Server{Addr: ":18002"}
-	s3 := http.Server{Addr: "-1:8003"}
+	s1 := http.Server{Addr: "-1" + addr1}
+	s2 := http.Server{Addr: addr2}
+	s3 := http.Server{Addr: "-1" + addr3}
 
 	g := graceful.Group{
 		Runners: []graceful.Runner{
@@ -178,9 +184,9 @@ func ExampleGroup_runnerStartError() {
 func ExampleGroup_runnerStopError() {
 	ctx := context.Background()
 
-	s1 := http.Server{Addr: ":8001"}
-	s2 := http.Server{Addr: ":18002"}
-	s3 := http.Server{Addr: ":8003"}
+	s1 := http.Server{Addr: addr1}
+	s2 := http.Server{Addr: addr2}
+	s3 := http.Server{Addr: addr3}
 
 	g := graceful.Group{
 		Runners: []graceful.Runner{
@@ -227,8 +233,8 @@ func ExampleGroup_runnerStopError() {
 func ExampleGroup_startContextCancelled() {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	s1 := http.Server{Addr: ":8001"}
-	s2 := http.Server{Addr: ":8002"}
+	s1 := http.Server{Addr: addr1}
+	s2 := http.Server{Addr: addr2}
 
 	g := graceful.Group{
 		Runners: []graceful.Runner{
