@@ -2,6 +2,7 @@
 // services, primarily used to accomplish a graceful shutdown.
 //
 // TODO: Update all docstrings indicating differences between v1 and v2.
+// TODO: Add example & testing for recursive use of groups.
 package graceful
 
 import (
