@@ -202,7 +202,8 @@ func TestGroup_Stop(t *testing.T) {
 	t.Run("stops all runners sequentially", func(t *testing.T) {
 		t.Parallel()
 
-		aCh, bCh, sqCh := make(chan struct{}), make(chan struct{}), make(chan string, 2)
+		sqCh := make(chan string, 3)
+		aCh, bCh, cCh := make(chan struct{}), make(chan struct{}), make(chan struct{})
 		defer close(sqCh)
 
 		g := graceful.Group{
@@ -217,6 +218,11 @@ func TestGroup_Stop(t *testing.T) {
 					sqCh <- "b"
 					return nil
 				}},
+				graceful.RunnerType{StopFunc: func(ctx context.Context) error {
+					close(cCh)
+					sqCh <- "c"
+					return nil
+				}},
 			},
 			ShutdownTimeout:      25 * time.Millisecond,
 			ShutdownSequentially: true,
@@ -229,6 +235,47 @@ func TestGroup_Stop(t *testing.T) {
 		require.False(t, bOpen)
 		require.Equal(t, "a", <-sqCh)
 		require.Equal(t, "b", <-sqCh)
+		require.Equal(t, "c", <-sqCh)
+	})
+
+	t.Run("stops all runners sequentially in reverse", func(t *testing.T) {
+		t.Parallel()
+
+		sqCh := make(chan string, 3)
+		aCh, bCh, cCh := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		defer close(sqCh)
+
+		g := graceful.Group{
+			Runners: []graceful.Runner{
+				graceful.RunnerType{StopFunc: func(ctx context.Context) error {
+					close(aCh)
+					sqCh <- "a"
+					return nil
+				}},
+				graceful.RunnerType{StopFunc: func(ctx context.Context) error {
+					close(bCh)
+					sqCh <- "b"
+					return nil
+				}},
+				graceful.RunnerType{StopFunc: func(ctx context.Context) error {
+					close(cCh)
+					sqCh <- "c"
+					return nil
+				}},
+			},
+			ShutdownTimeout:      25 * time.Millisecond,
+			ShutdownSequentially: true,
+			ShutdownReversed:     true,
+		}
+		err := g.Stop(context.Background())
+		require.NoError(t, err)
+		_, aOpen := <-aCh
+		require.False(t, aOpen)
+		_, bOpen := <-bCh
+		require.False(t, bOpen)
+		require.Equal(t, "c", <-sqCh)
+		require.Equal(t, "b", <-sqCh)
+		require.Equal(t, "a", <-sqCh)
 	})
 
 	t.Run("returns first concurrent runner stop error encountered", func(t *testing.T) {

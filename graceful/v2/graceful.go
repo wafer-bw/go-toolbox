@@ -1,8 +1,9 @@
-// Package graceful provides mechanisms for starting and stopping groups of
+// Package graceful v2 provides mechanisms for starting and stopping groups of
 // services, primarily used to accomplish a graceful shutdown.
 //
 // TODO: Update all docstrings indicating differences between v1 and v2.
 // TODO: Add example & testing for recursive use of groups.
+// TODO: Document that v1 is not superceded by v2, it's just a diff use case.
 package graceful
 
 import (
@@ -29,10 +30,24 @@ type Runner interface {
 // point and stop gracefully should one of them encounter an error or the
 // application receive a signal.
 type Group struct {
-	Runners              []Runner
-	ShutdownSignals      []os.Signal
-	ShutdownTimeout      time.Duration
+	Runners []Runner
+
+	// ShutdownSignals are the signals that will trigger a graceful shutdown.
+	ShutdownSignals []os.Signal
+
+	// ShutdownTimeout is the maximum time allowed for all runners to stop.
+	ShutdownTimeout time.Duration
+
+	// ShutdownSequentially will stop all runners in sequence, blocking for the
+	// completion of each Runner's Stop method before moving to the next.
 	ShutdownSequentially bool
+
+	// ShutdownReversed can be applied when ShutdownSequentially is true. It
+	// will cause Stop to traverse the Runners slice in reverse while shutting
+	// down.
+	ShutdownReversed bool
+
+	// TODO: StartupSequentially bool ?
 }
 
 // Run is a convenience method that calls [Group.Start] & [Group.Stop] in
@@ -71,8 +86,8 @@ func (g Group) Start(ctx context.Context) error {
 	}
 }
 
-// Stop all [Runner] concurrently, blocking until all Runner.Stop calls have
-// returned, then returns the first non-nil error (if any) from them.
+// Stop all [Runner], blocking until all Runner.Stop calls have returned, then
+// returns the first non-nil error (if any) from them.
 //
 // If a Runner.Stop does not complete before timeout the context passed to
 // it will cancel with [ShutdownTimeoutError] as the [context.Cause].
@@ -81,14 +96,14 @@ func (g Group) Stop(ctx context.Context) error {
 	defer cancel()
 
 	if g.ShutdownSequentially {
-		return sequentialStop(ctx, g.Runners)
+		return g.sequentialStop(ctx)
 	}
-	return concurrentStop(ctx, g.Runners)
+	return g.concurrentStop(ctx)
 }
 
-func concurrentStop(ctx context.Context, runners []Runner) error {
+func (g Group) concurrentStop(ctx context.Context) error {
 	eg := new(errgroup.Group)
-	for _, r := range runners {
+	for _, r := range g.Runners {
 		if r == nil {
 			continue
 		}
@@ -98,12 +113,20 @@ func concurrentStop(ctx context.Context, runners []Runner) error {
 	return eg.Wait()
 }
 
-func sequentialStop(ctx context.Context, runners []Runner) error {
+func (g Group) sequentialStop(ctx context.Context) error {
 	var firstErr error
-	for _, r := range runners {
+	for i := 0; i < len(g.Runners); i++ {
+		var r Runner
+		if g.ShutdownReversed {
+			r = g.Runners[len(g.Runners)-1-i]
+		} else {
+			r = g.Runners[i]
+		}
+
 		if r == nil {
 			continue
 		}
+
 		if err := r.Stop(ctx); err != nil && firstErr == nil {
 			firstErr = err
 		}
