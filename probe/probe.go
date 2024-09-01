@@ -32,7 +32,7 @@ func (f ProberFunc) Probe(ctx context.Context) error {
 	return f(ctx)
 }
 
-// Group of Probers to probe all at once.
+// Group of Probers to probe.
 type Group map[string]Prober
 
 // ProbeAll executes Probe() on each [Prober] returning a map of results and a
@@ -51,7 +51,7 @@ func (g Group) ProbeAll(ctx context.Context) (map[string]error, bool) {
 	return results, ok
 }
 
-// ServeHTTP probes the state of all Probers in the group.
+// ServeHTTP probes the state of all [Prober] in the group.
 //
 // Response status codes:
 //   - 200 OK (all probes were successful)
