@@ -224,8 +224,8 @@ func TestGroup_Stop(t *testing.T) {
 					return nil
 				}},
 			},
-			ShutdownTimeout:      25 * time.Millisecond,
-			ShutdownSequentially: true,
+			ShutdownTimeout:  25 * time.Millisecond,
+			SequentiallyStop: true,
 		}
 		err := g.Stop(context.Background())
 		require.NoError(t, err)
@@ -263,9 +263,9 @@ func TestGroup_Stop(t *testing.T) {
 					return nil
 				}},
 			},
-			ShutdownTimeout:      25 * time.Millisecond,
-			ShutdownSequentially: true,
-			ShutdownReversed:     true,
+			ShutdownTimeout:  25 * time.Millisecond,
+			SequentiallyStop: true,
+			ReverseStop:      true,
 		}
 		err := g.Stop(context.Background())
 		require.NoError(t, err)
@@ -304,8 +304,8 @@ func TestGroup_Stop(t *testing.T) {
 				graceful.RunnerType{StopFunc: func(ctx context.Context) error { return stopErr1 }},
 				graceful.RunnerType{StopFunc: func(ctx context.Context) error { return stopErr2 }},
 			},
-			ShutdownTimeout:      25 * time.Millisecond,
-			ShutdownSequentially: true,
+			ShutdownTimeout:  25 * time.Millisecond,
+			SequentiallyStop: true,
 		}
 		err := g.Stop(context.Background())
 		require.Error(t, err)
@@ -351,9 +351,9 @@ func TestGroup_Stop(t *testing.T) {
 		t.Parallel()
 
 		g := graceful.Group{
-			Runners:              []graceful.Runner{nil, nil, nil},
-			ShutdownTimeout:      25 * time.Millisecond,
-			ShutdownSequentially: true,
+			Runners:          []graceful.Runner{nil, nil, nil},
+			ShutdownTimeout:  25 * time.Millisecond,
+			SequentiallyStop: true,
 		}
 		require.NotPanics(t, func() {
 			err := g.Stop(context.Background())
@@ -378,9 +378,9 @@ func TestGroup_Stop(t *testing.T) {
 		t.Parallel()
 
 		g := graceful.Group{
-			Runners:              []graceful.Runner{},
-			ShutdownTimeout:      25 * time.Millisecond,
-			ShutdownSequentially: true,
+			Runners:          []graceful.Runner{},
+			ShutdownTimeout:  25 * time.Millisecond,
+			SequentiallyStop: true,
 		}
 		require.NotPanics(t, func() {
 			err := g.Stop(context.Background())
@@ -402,8 +402,8 @@ func TestGroup_Stop(t *testing.T) {
 		t.Parallel()
 
 		g := graceful.Group{
-			ShutdownTimeout:      25 * time.Millisecond,
-			ShutdownSequentially: true,
+			ShutdownTimeout:  25 * time.Millisecond,
+			SequentiallyStop: true,
 		}
 		require.NotPanics(t, func() {
 			err := g.Stop(context.Background())

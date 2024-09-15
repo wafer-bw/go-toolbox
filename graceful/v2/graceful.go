@@ -18,12 +18,12 @@ import (
 
 // Runner is capable of starting and stopping itself.
 type Runner interface {
-	// Start must either complete within the lifetime of the context passed to
-	// it respecting the context's deadline or terminate when Stop is called.
+	// Start should block until whatever it starts is running. Everything it
+	// runs must respect the lifetime of the context passed to it.
 	Start(context.Context) error
 
-	// Stop must complete within the lifetime of the context passed to it
-	// respecting the context's deadline.
+	// Stop should block until whatever it stops is terminated. Everything it
+	// runs must respect the lifetime of the context passed to it.
 	Stop(context.Context) error
 }
 
@@ -33,24 +33,23 @@ type Runner interface {
 type Group struct {
 	Runners []Runner
 
-	// StartupSequentially will start all runners in sequence, blocking at each
+	// SequentiallyStart will start all runners in sequence, blocking at each
 	// each Runner's Start method before moving to the next.
-	StartupSequentially bool
+	SequentiallyStart bool
+
+	// SequentiallyStop will stop all runners in sequence, blocking at each
+	// Runner's Stop method before moving to the next.
+	SequentiallyStop bool
+
+	// ReverseStop can be applied when SequentiallyStop is true. It will cause
+	// Stop to traverse the Runners slice in reverse.
+	ReverseStop bool
 
 	// ShutdownSignals are the signals that will trigger a graceful shutdown.
 	ShutdownSignals []os.Signal
 
 	// ShutdownTimeout is the maximum time allowed for all runners to stop.
 	ShutdownTimeout time.Duration
-
-	// ShutdownSequentially will stop all runners in sequence, blocking at each
-	// Runner's Stop method before moving to the next.
-	ShutdownSequentially bool
-
-	// ShutdownReversed can be applied when ShutdownSequentially is true. It
-	// will cause Stop to traverse the Runners slice in reverse while shutting
-	// down.
-	ShutdownReversed bool
 }
 
 // Run is a convenience method that calls [Group.Start] & [Group.Stop] in
@@ -73,7 +72,7 @@ func (g Group) Start(ctx context.Context) error {
 	signalCtx, stop := signal.NotifyContext(ctx, g.ShutdownSignals...)
 	defer stop()
 
-	if g.StartupSequentially {
+	if g.SequentiallyStart {
 		eg.Go(func() error { return g.sequentialStart(ctx) })
 	} else {
 		g.concurrentStart(errCtx, eg)
@@ -92,7 +91,6 @@ func (g Group) concurrentStart(ctx context.Context, eg *errgroup.Group) {
 		if r == nil {
 			continue
 		}
-		r := r
 		eg.Go(func() error { return r.Start(ctx) })
 	}
 }
@@ -121,7 +119,7 @@ func (g Group) Stop(ctx context.Context) error {
 	ctx, cancel := context.WithTimeoutCause(ctx, g.ShutdownTimeout, ShutdownTimeoutError{})
 	defer cancel()
 
-	if g.ShutdownSequentially {
+	if g.SequentiallyStop {
 		return g.sequentialStop(ctx)
 	}
 	return g.concurrentStop(ctx)
@@ -133,7 +131,6 @@ func (g Group) concurrentStop(ctx context.Context) error {
 		if r == nil {
 			continue
 		}
-		r := r
 		eg.Go(func() error { return r.Stop(ctx) })
 	}
 	return eg.Wait()
@@ -143,7 +140,7 @@ func (g Group) sequentialStop(ctx context.Context) error {
 	var firstErr error
 	for i := 0; i < len(g.Runners); i++ {
 		var r Runner
-		if g.ShutdownReversed {
+		if g.ReverseStop {
 			r = g.Runners[len(g.Runners)-1-i]
 		} else {
 			r = g.Runners[i]
