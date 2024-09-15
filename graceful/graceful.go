@@ -51,7 +51,6 @@ func (g Group) Start(ctx context.Context, signals ...os.Signal) error {
 		if r == nil {
 			continue
 		}
-		r := r
 		eg.Go(func() error { return r.Start(ctx) })
 	}
 
@@ -77,7 +76,6 @@ func (g Group) Stop(ctx context.Context, timeout time.Duration) error {
 		if r == nil {
 			continue
 		}
-		r := r
 		eg.Go(func() error { return r.Stop(ctx) })
 	}
 
