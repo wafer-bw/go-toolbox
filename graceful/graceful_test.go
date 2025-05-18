@@ -3,6 +3,7 @@ package graceful_test
 import (
 	"context"
 	"errors"
+	"os"
 	"syscall"
 	"testing"
 	"time"
@@ -11,37 +12,49 @@ import (
 	"github.com/wafer-bw/go-toolbox/graceful"
 )
 
-func TestGroup_Run(t *testing.T) {
+func TestRunnerType_Start(t *testing.T) {
 	t.Parallel()
 
-	t.Run("calls start and stop in sequence returning the error from start", func(t *testing.T) {
+	t.Run("does not panic when StartFunc is nil", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-		defer cancel()
+		r := graceful.RunnerType{}
+		require.NotPanics(t, func() {
+			err := r.Start(t.Context())
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("returns StartFunc error", func(t *testing.T) {
+		t.Parallel()
 
 		startErr := errors.New("start failed")
-		aCh, bCh := make(chan struct{}), make(chan struct{})
-		g := graceful.Group{
-			graceful.RunnerType{
-				StartFunc: func(ctx context.Context) error {
-					close(aCh)
-					return startErr
-				},
-				StopFunc: func(ctx context.Context) error {
-					close(bCh)
-					return nil
-				},
-			},
-		}
+		r := graceful.RunnerType{StartFunc: func(ctx context.Context) error { return startErr }}
+		err := r.Start(t.Context())
+		require.ErrorIs(t, startErr, err)
+	})
+}
 
-		err := g.Run(ctx, 25*time.Millisecond)
-		require.Error(t, err)
-		require.Equal(t, startErr, err)
-		_, aOpen := <-aCh
-		require.False(t, aOpen)
-		_, bOpen := <-bCh
-		require.False(t, bOpen)
+func TestRunnerType_Stop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("does not panic when StopFunc is nil", func(t *testing.T) {
+		t.Parallel()
+
+		r := graceful.RunnerType{}
+		require.NotPanics(t, func() {
+			err := r.Stop(t.Context())
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("returns StopFunc error", func(t *testing.T) {
+		t.Parallel()
+
+		stopErr := errors.New("stop failed")
+		r := graceful.RunnerType{StopFunc: func(ctx context.Context) error { return stopErr }}
+		err := r.Stop(t.Context())
+		require.ErrorIs(t, stopErr, err)
 	})
 }
 
@@ -50,9 +63,6 @@ func TestGroup_Start(t *testing.T) {
 
 	t.Run("starts all runners", func(t *testing.T) {
 		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-		defer cancel()
 
 		aCh, bCh := make(chan struct{}), make(chan struct{})
 		g := graceful.Group{
@@ -66,7 +76,7 @@ func TestGroup_Start(t *testing.T) {
 			}},
 		}
 
-		err := g.Start(ctx, syscall.SIGTERM)
+		err := g.Start(t.Context())
 		require.NoError(t, err)
 		_, aOpen := <-aCh
 		require.False(t, aOpen)
@@ -77,59 +87,17 @@ func TestGroup_Start(t *testing.T) {
 	t.Run("returns first runner start error encountered", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-		defer cancel()
-
 		startErr := errors.New("start failed")
 		g := graceful.Group{
+			graceful.RunnerType{StartFunc: func(ctx context.Context) error { return nil }},
 			graceful.RunnerType{StartFunc: func(ctx context.Context) error { return startErr }},
 			graceful.RunnerType{StartFunc: func(ctx context.Context) error { return startErr }},
+			graceful.RunnerType{StartFunc: func(ctx context.Context) error { return nil }},
 		}
 
-		err := g.Start(ctx, syscall.SIGTERM)
+		err := g.Start(t.Context())
 		require.Error(t, err)
 		require.Equal(t, startErr, err)
-	})
-
-	t.Run("returns nil when a signal is received", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-		defer cancel()
-		g := graceful.Group{}
-		go func() {
-			time.Sleep(50 * time.Millisecond)
-			err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-			require.NoError(t, err)
-		}()
-
-		err := g.Start(ctx, syscall.SIGTERM)
-		require.NoError(t, err)
-		require.NoError(t, ctx.Err())
-	})
-
-	t.Run("returns context canceled error if encountered", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		g := graceful.Group{}
-
-		err := g.Start(ctx, syscall.SIGTERM)
-		require.Error(t, err)
-		require.Equal(t, context.Canceled, err)
-	})
-
-	t.Run("returns context deadline error if encountered", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
-		defer cancel()
-		g := graceful.Group{}
-
-		err := g.Start(ctx, syscall.SIGTERM)
-		require.Error(t, err)
-		require.Equal(t, context.DeadlineExceeded, err)
 	})
 
 	t.Run("does not panic when runners are nil", func(t *testing.T) {
@@ -137,9 +105,36 @@ func TestGroup_Start(t *testing.T) {
 
 		g := graceful.Group{nil, nil, nil}
 		require.NotPanics(t, func() {
-			err := g.Start(context.Background())
+			err := g.Start(t.Context())
 			require.NoError(t, err)
 		})
+	})
+
+	t.Run("blocks indefinitely if all starts block", func(t *testing.T) {
+		t.Parallel()
+
+		timeout := 25 * time.Millisecond
+		timeoutCause := errors.New("parent context timeout")
+
+		g := graceful.Group{
+			graceful.RunnerType{StartFunc: func(ctx context.Context) error {
+				<-ctx.Done()
+				return ctx.Err()
+			}},
+			graceful.RunnerType{StartFunc: func(ctx context.Context) error {
+				<-ctx.Done()
+				return ctx.Err()
+			}},
+		}
+
+		ctx, cancel := context.WithTimeoutCause(t.Context(), timeout, timeoutCause)
+		defer cancel()
+
+		err := g.Start(ctx)
+		require.Error(t, err)
+		cause := context.Cause(ctx)
+		require.ErrorIs(t, cause, timeoutCause)
+
 	})
 
 	t.Run("does not panic when slice is empty", func(t *testing.T) {
@@ -147,7 +142,7 @@ func TestGroup_Start(t *testing.T) {
 
 		g := graceful.Group{}
 		require.NotPanics(t, func() {
-			err := g.Start(context.Background())
+			err := g.Start(t.Context())
 			require.NoError(t, err)
 		})
 	})
@@ -170,7 +165,8 @@ func TestGroup_Stop(t *testing.T) {
 				return nil
 			}},
 		}
-		err := g.Stop(context.Background(), 25*time.Millisecond)
+
+		err := g.Stop(t.Context())
 		require.NoError(t, err)
 		_, aOpen := <-aCh
 		require.False(t, aOpen)
@@ -183,31 +179,14 @@ func TestGroup_Stop(t *testing.T) {
 
 		stopErr := errors.New("stop failed")
 		g := graceful.Group{
+			graceful.RunnerType{StopFunc: func(ctx context.Context) error { return nil }},
 			graceful.RunnerType{StopFunc: func(ctx context.Context) error { return stopErr }},
 			graceful.RunnerType{StopFunc: func(ctx context.Context) error { return stopErr }},
+			graceful.RunnerType{StopFunc: func(ctx context.Context) error { return nil }},
 		}
-		err := g.Stop(context.Background(), 25*time.Millisecond)
+		err := g.Stop(t.Context())
 		require.Error(t, err)
 		require.Equal(t, stopErr, err)
-	})
-
-	t.Run("sets context cause to shutdown timeout error if it times out", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-		defer cancel()
-
-		g := graceful.Group{
-			graceful.RunnerType{
-				StopFunc: func(ctx context.Context) error {
-					<-ctx.Done()
-					return context.Cause(ctx)
-				},
-			},
-		}
-		err := g.Stop(ctx, 25*time.Millisecond)
-		require.Error(t, err)
-		require.ErrorIs(t, err, graceful.ShutdownTimeoutError{})
 	})
 
 	t.Run("does not panic when runners are nil", func(t *testing.T) {
@@ -215,7 +194,7 @@ func TestGroup_Stop(t *testing.T) {
 
 		g := graceful.Group{nil, nil, nil}
 		require.NotPanics(t, func() {
-			err := g.Stop(context.Background(), 25*time.Millisecond)
+			err := g.Stop(t.Context())
 			require.NoError(t, err)
 		})
 	})
@@ -225,88 +204,395 @@ func TestGroup_Stop(t *testing.T) {
 
 		g := graceful.Group{}
 		require.NotPanics(t, func() {
-			err := g.Stop(context.Background(), 25*time.Millisecond)
+			err := g.Stop(t.Context())
 			require.NoError(t, err)
 		})
 	})
 }
 
-func TestRunnerType_Start(t *testing.T) {
-	t.Parallel()
+func TestGroup_Run(t *testing.T) {
+	// this test uses signals so it cannot be run using t.Parallel().
 
-	t.Run("calls StartFunc and returns its error", func(t *testing.T) {
-		t.Parallel()
-
-		startErr := errors.New("error")
-		rt := graceful.RunnerType{
-			StartFunc: func(ctx context.Context) error { return startErr },
-			StopFunc:  func(ctx context.Context) error { return nil },
+	t.Run("successfully stops via signal within timeout", func(t *testing.T) {
+		ctx := t.Context()
+		aStartCh, bStartCh, cStartCh := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		aStopCh, bStopCh, cStopCh := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(aStartCh)
+					<-ctx.Done()
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(aStopCh)
+					return nil
+				},
+			},
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(bStartCh)
+					<-ctx.Done()
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(bStopCh)
+					return nil
+				},
+			},
+			graceful.Group{
+				graceful.RunnerType{
+					StartFunc: func(ctx context.Context) error {
+						close(cStartCh)
+						return nil
+					},
+					StopFunc: func(ctx context.Context) error {
+						close(cStopCh)
+						return nil
+					},
+				},
+			},
 		}
 
-		err := rt.Start(context.Background())
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			p, err := os.FindProcess(syscall.Getpid())
+			require.NoError(t, err)
+			require.NoError(t, p.Signal(syscall.SIGHUP))
+		}()
+
+		err := g.Run(ctx,
+			graceful.WithStopSignals(syscall.SIGHUP),
+			graceful.WithStopTimeout(100*time.Millisecond),
+		)
+		require.NoError(t, err)
+		_, aStartOpen := <-aStartCh
+		require.False(t, aStartOpen)
+		_, aStopOpen := <-aStopCh
+		require.False(t, aStopOpen)
+		_, bStartOpen := <-bStartCh
+		require.False(t, bStartOpen)
+		_, bStopOpen := <-bStopCh
+		require.False(t, bStopOpen)
+		_, cStartOpen := <-cStartCh
+		require.False(t, cStartOpen)
+		_, cStopOpen := <-cStopCh
+		require.False(t, cStopOpen)
+	})
+
+	t.Run("calls all stops when parent context is done", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		aStartCh, bStartCh := make(chan struct{}), make(chan struct{})
+		aStopCh, bStopCh := make(chan struct{}), make(chan struct{})
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(aStartCh)
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(aStopCh)
+					return nil
+				},
+			},
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(bStartCh)
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(bStopCh)
+					return nil
+				},
+			},
+		}
+
+		err := g.Run(ctx)
+		require.Equal(t, ctx.Err(), err)
+		_, aStartOpen := <-aStartCh
+		require.False(t, aStartOpen)
+		_, aStopOpen := <-aStopCh
+		require.False(t, aStopOpen)
+		_, bStartOpen := <-bStartCh
+		require.False(t, bStartOpen)
+		_, bStopOpen := <-bStopCh
+		require.False(t, bStopOpen)
+	})
+
+	t.Run("calls all stops when a start fails", func(t *testing.T) {
+		ctx := t.Context()
+		fail := errors.New("oh no")
+		aStartCh, bStartCh := make(chan struct{}), make(chan struct{})
+		aStopCh, bStopCh := make(chan struct{}), make(chan struct{})
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(aStartCh)
+					return fail
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(aStopCh)
+					return nil
+				},
+			},
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(bStartCh)
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(bStopCh)
+					return nil
+				},
+			},
+		}
+
+		err := g.Run(ctx)
+		require.Equal(t, fail, err)
+		_, aStartOpen := <-aStartCh
+		require.False(t, aStartOpen)
+		_, aStopOpen := <-aStopCh
+		require.False(t, aStopOpen)
+		_, bStartOpen := <-bStartCh
+		require.False(t, bStartOpen)
+		_, bStopOpen := <-bStopCh
+		require.False(t, bStopOpen)
+	})
+
+	t.Run("calls all stops when a stop fails", func(t *testing.T) {
+		ctx := t.Context()
+		fail := errors.New("oh no")
+		aStartCh, bStartCh := make(chan struct{}), make(chan struct{})
+		aStopCh, bStopCh := make(chan struct{}), make(chan struct{})
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(aStartCh)
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(aStopCh)
+					return nil
+				},
+			},
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					close(bStartCh)
+					return fail
+				},
+				StopFunc: func(ctx context.Context) error {
+					close(bStopCh)
+					return nil
+				},
+			},
+		}
+
+		err := g.Run(ctx)
+		require.Equal(t, fail, err)
+		_, aStartOpen := <-aStartCh
+		require.False(t, aStartOpen)
+		_, aStopOpen := <-aStopCh
+		require.False(t, aStopOpen)
+		_, bStartOpen := <-bStartCh
+		require.False(t, bStartOpen)
+		_, bStopOpen := <-bStopCh
+		require.False(t, bStopOpen)
+	})
+
+	t.Run("waits indefinitely for stops when no timeout is provided", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return nil
+				},
+			},
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return nil
+				},
+			},
+		}
+
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			p, err := os.FindProcess(syscall.Getpid())
+			require.NoError(t, err)
+			require.NoError(t, p.Signal(syscall.SIGHUP))
+		}()
+
+		err := g.Run(ctx, graceful.WithStopSignals(syscall.SIGHUP))
+		require.NoError(t, err)
+	})
+
+	t.Run("waits for parent context to stop when no signals are provided", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return nil
+				},
+			},
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return nil
+				},
+				StopFunc: func(ctx context.Context) error {
+					<-ctx.Done()
+					return nil
+				},
+			},
+		}
+
+		err := g.Run(ctx, graceful.WithStopTimeout(50*time.Millisecond))
+		require.Equal(t, ctx.Err(), err)
+	})
+
+	t.Run("closes stopping channel", func(t *testing.T) {
+		ctx := t.Context()
+		stoppingCh := make(chan struct{})
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error { return nil },
+				StopFunc:  func(ctx context.Context) error { return nil },
+			},
+		}
+
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			p, err := os.FindProcess(syscall.Getpid())
+			require.NoError(t, err)
+			require.NoError(t, p.Signal(syscall.SIGHUP))
+		}()
+
+		go func() {
+			_ = g.Run(ctx,
+				graceful.WithStopSignals(syscall.SIGHUP),
+				graceful.WithStopTimeout(100*time.Millisecond),
+				graceful.WithStoppingCh(stoppingCh),
+			)
+		}()
+
+		_, open := <-stoppingCh
+		require.False(t, open)
+	})
+
+	t.Run("does not panic when provided nil signal", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error { return nil },
+				StopFunc:  func(ctx context.Context) error { return nil },
+			},
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error { return nil },
+				StopFunc:  func(ctx context.Context) error { return nil },
+			},
+		}
+
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			p, err := os.FindProcess(syscall.Getpid())
+			require.NoError(t, err)
+			require.NoError(t, p.Signal(syscall.SIGHUP))
+		}()
+
+		require.NotPanics(t, func() {
+			err := g.Run(ctx, graceful.WithStopSignals(nil, syscall.SIGHUP))
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("does not panic when provided no signals", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error { return nil },
+				StopFunc:  func(ctx context.Context) error { return nil },
+			},
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error { return nil },
+				StopFunc:  func(ctx context.Context) error { return nil },
+			},
+		}
+
+		require.NotPanics(t, func() {
+			err := g.Run(ctx, graceful.WithStopSignals())
+			require.Equal(t, ctx.Err(), err)
+		})
+	})
+
+	t.Run("does not panic when provided nil options", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error { return nil },
+				StopFunc:  func(ctx context.Context) error { return nil },
+			},
+		}
+
+		require.NotPanics(t, func() {
+			err := g.Run(ctx, nil)
+			require.Equal(t, ctx.Err(), err)
+		})
+	})
+
+	t.Run("returns start error when there is a stop error", func(t *testing.T) {
+		ctx := t.Context()
+		startErr := errors.New("start failed")
+		stopErr := errors.New("stop failed")
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error { return startErr },
+				StopFunc:  func(ctx context.Context) error { return stopErr },
+			},
+		}
+
+		err := g.Run(ctx)
 		require.Error(t, err)
 		require.Equal(t, startErr, err)
 	})
 
-	t.Run("does not panic when StartFunc is nil", func(t *testing.T) {
-		t.Parallel()
-
-		rt := graceful.RunnerType{
-			StartFunc: nil,
-			StopFunc:  func(ctx context.Context) error { return nil },
+	t.Run("returns stop error when there is a run error", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		stopErr := errors.New("stop failed")
+		g := graceful.Group{
+			graceful.RunnerType{
+				StartFunc: func(ctx context.Context) error { return nil },
+				StopFunc:  func(ctx context.Context) error { return stopErr },
+			},
 		}
 
-		require.NotPanics(t, func() { _ = rt.Start(context.Background()) })
-	})
-}
-
-func TestRunnerType_Stop(t *testing.T) {
-	t.Parallel()
-
-	t.Run("calls StopFunc and returns its error", func(t *testing.T) {
-		t.Parallel()
-
-		stopErr := errors.New("error")
-		rt := graceful.RunnerType{
-			StartFunc: func(ctx context.Context) error { return nil },
-			StopFunc:  func(ctx context.Context) error { return stopErr },
-		}
-
-		err := rt.Stop(context.Background())
+		err := g.Run(ctx)
 		require.Error(t, err)
 		require.Equal(t, stopErr, err)
-	})
-
-	t.Run("does not panic when StopFunc is nil", func(t *testing.T) {
-		t.Parallel()
-
-		rt := graceful.RunnerType{
-			StartFunc: func(ctx context.Context) error { return nil },
-			StopFunc:  nil,
-		}
-
-		require.NotPanics(t, func() { _ = rt.Stop(context.Background()) })
-	})
-}
-
-func TestShutdownTimeoutError_Error(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns error message", func(t *testing.T) {
-		t.Parallel()
-
-		err := graceful.ShutdownTimeoutError{}
-		require.Greater(t, len(err.Error()), 0)
-	})
-}
-
-func TestShutdownTimeoutError_Timeout(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns true", func(t *testing.T) {
-		t.Parallel()
-
-		err := graceful.ShutdownTimeoutError{}
-		require.True(t, err.Timeout())
 	})
 }

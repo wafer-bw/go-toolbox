@@ -1,8 +1,14 @@
-// Package graceful provides mechanisms for starting and stopping groups of
-// services, primarily used to accomplish a graceful shutdown.
+// Package graceful provides mechanisms for asynchronously starting &
+// synchronously stopping trees of long running tasks enabling graceful
+// shutdowns.
+//
+// This package handles the common case of starting several things in parallel
+// then stopping them gracefully in series. It does not act as a full directed
+// acyclic graph (https://en.wikipedia.org/wiki/Directed_acyclic_graph).
 package graceful
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"os/signal"
@@ -13,40 +19,53 @@ import (
 
 // Runner is capable of starting and stopping itself.
 type Runner interface {
-	// Start must either complete within the lifetime of the context passed to
-	// it respecting the context's deadline or terminate when Stop is called.
+	// Start must terminate when the passed context is canceled, [Runner.Stop]
+	// is called, or it completes without error (whichever happens first). It
+	// must not panic if [Runner.Stop] was called first.
 	Start(context.Context) error
 
-	// Stop must complete within the lifetime of the context passed to it
-	// respecting the context's deadline.
+	// Stop must terminate when the passed context is canceled or it completes
+	// without error (whichever happens first). It must not panic if
+	// [Runner.Start] was not called.
 	Stop(context.Context) error
 }
 
-// Group of [Runner] that should run concurrently together via a single call
-// point and stop gracefully should one of them encounter an error or the
-// application receive a signal.
-type Group []Runner
+type RunOption func(*RunConfig)
 
-// Run is a convenience method that calls [Group.Start] & [Group.Stop] in
-// sequence returning the error (if any) from [Group.Start] and ignoring the
-// error (if any) from [Group.Stop].
-func (g Group) Run(ctx context.Context, timeout time.Duration, signals ...os.Signal) error {
-	defer g.Stop(ctx, timeout) //nolint:errcheck // intentionally ignored.
-	return g.Start(ctx, signals...)
+func WithStopTimeout(d time.Duration) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.stopTimeout = d
+	}
 }
 
-// Start all [Runner] concurrently, blocking until either a Runner.Start call
-// encounters an error, one of the provided signals is received via
-// [signal.NotifyContext], or the context provided to it is canceled, then
-// returns the first non-nil error (if any) or nil if a signal was received.
-//
-// An error returned from Start does not indicate that all runners have stopped,
-// you must call [Group.Stop] to stop all runners.
-func (g Group) Start(ctx context.Context, signals ...os.Signal) error {
-	eg, errCtx := errgroup.WithContext(ctx)
-	signalCtx, stop := signal.NotifyContext(ctx, signals...)
-	defer stop()
+func WithStopSignals(signals ...os.Signal) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.signals = signals
+	}
+}
 
+func WithStoppingCh(ch chan<- struct{}) RunOption {
+	return func(cfg *RunConfig) {
+		cfg.stoppingCh = ch
+	}
+}
+
+type RunConfig struct {
+	stopTimeout time.Duration
+	signals     []os.Signal
+	stoppingCh  chan<- struct{}
+}
+
+// Group of [Runner] which can be started in parallel & stopped in series.
+//
+// Group satisfies [Runner] and thus it can be nested within itself to create
+// a tree.
+type Group []Runner
+
+// Start all [Runner] in parallel. Blocks until all [Runner.Start] have returned
+// normally, then returns the first non-nil errror (if any) from them.
+func (g Group) Start(ctx context.Context) error {
+	eg := new(errgroup.Group)
 	for _, r := range g {
 		if r == nil {
 			continue
@@ -54,32 +73,83 @@ func (g Group) Start(ctx context.Context, signals ...os.Signal) error {
 		eg.Go(func() error { return r.Start(ctx) })
 	}
 
-	select {
-	case <-errCtx.Done():
-		return context.Cause(errCtx)
-	case <-signalCtx.Done():
-		return ctx.Err()
-	}
+	return eg.Wait()
 }
 
-// Stop all [Runner] concurrently, blocking until all Runner.Stop calls have
-// returned, then returns the first non-nil error (if any) from them.
-//
-// If a Runner.Stop does not complete before timeout the context passed to
-// it will cancel with [ShutdownTimeoutError] as the [context.Cause].
-func (g Group) Stop(ctx context.Context, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout, ShutdownTimeoutError{})
-	defer cancel()
-
-	eg := new(errgroup.Group)
+// Stop all [Runner] in series. Blocks until all [Runner.Stop] have returned
+// normally, then returns the first non-nil errror (if any) from them.
+func (g Group) Stop(ctx context.Context) error {
+	var firstErr error
 	for _, r := range g {
 		if r == nil {
 			continue
 		}
-		eg.Go(func() error { return r.Stop(ctx) })
+		if err := r.Stop(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
 
-	return eg.Wait()
+	return firstErr
+}
+
+// Run starts all [Runner] in parallel and stops them in series.
+//
+// Stopping is initiated when any of the following occurs:
+//   - the passed context is canceled
+//   - a signal passed via [WithStopSignals] is received
+//   - a [Runner.Start] returns an error
+//
+// When stopping is initiated, the channel passed via [WithStoppingCh] will be
+// closed. It will use the timeout passed via [WithStopTimeout] as the deadline
+// for the [context.Context] passed to each [Runner.Stop].
+//
+// The first encountered error (either [Runner.Start] error,
+// [context.Context.Err], or [Runner.Stop] error) will be returned. However, all
+// [Runner.Stop] are guaranteed to be called.
+func (g Group) Run(ctx context.Context, opts ...RunOption) error {
+	cfg := &RunConfig{}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(cfg)
+	}
+
+	var startErr, runErr error
+	startErrCh := make(chan error)
+	go func() {
+		if err := g.Start(ctx); err != nil {
+			startErrCh <- err
+		}
+	}()
+
+	signalCh := make(chan os.Signal, 1)
+	if len(cfg.signals) != 0 {
+		signal.Notify(signalCh, cfg.signals...)
+	}
+	select {
+	case <-signalCh:
+		// received signal
+	case err := <-startErrCh:
+		startErr = err
+	case <-ctx.Done():
+		runErr = ctx.Err()
+	}
+	signal.Stop(signalCh)
+
+	if cfg.stoppingCh != nil {
+		close(cfg.stoppingCh)
+	}
+
+	stopCtx, cancel := context.WithTimeout(ctx, cfg.stopTimeout)
+	if cfg.stopTimeout == 0 {
+		stopCtx = ctx
+	}
+	defer cancel()
+
+	stopErr := g.Stop(stopCtx)
+
+	return cmp.Or(startErr, stopErr, runErr)
 }
 
 // RunnerType is an adapter type to allow the use of ordinary start and stop
@@ -103,17 +173,4 @@ func (r RunnerType) Stop(ctx context.Context) error {
 		return nil
 	}
 	return r.StopFunc(ctx)
-}
-
-type ShutdownTimeoutError struct{}
-
-func (ShutdownTimeoutError) Error() string {
-	return "graceful shutdown timed out"
-}
-
-// Timeout returns true if the error is a timeout error, this allows callers
-// to identify the nature of the error without needing to match the error
-// based on equality.
-func (ShutdownTimeoutError) Timeout() bool {
-	return true
 }
