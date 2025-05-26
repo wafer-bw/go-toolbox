@@ -51,7 +51,7 @@ func BenchmarkToOrNil(b *testing.B) {
 
 func BenchmarkFrom(b *testing.B) {
 	b.Run("not nil", func(b *testing.B) {
-		var pv *bool = new(bool)
+		pv := new(bool)
 		for b.Loop() {
 			v := pointer.From(pv)
 			_ = v
