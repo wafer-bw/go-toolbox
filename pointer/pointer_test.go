@@ -12,9 +12,9 @@ func TestTo(t *testing.T) {
 	v := true
 	pv := pointer.To(v)
 	if pv == nil {
-		t.Fatal("expected non-nil pointer")
+		t.Error("expected non-nil pointer")
 	} else if v != *pv {
-		t.Fatalf("expected %v, got %v", v, *pv)
+		t.Errorf("expected %v, got %v", v, *pv)
 	}
 }
 
@@ -26,7 +26,7 @@ func TestFrom(t *testing.T) {
 		pv := new(bool)
 		v := pointer.From(pv)
 		if v != *pv {
-			t.Fatalf("expected %v, got %v", *pv, v)
+			t.Errorf("expected %v, got %v", *pv, v)
 		}
 	})
 
@@ -36,7 +36,7 @@ func TestFrom(t *testing.T) {
 		var pv *bool
 		v := pointer.From(pv)
 		if v != e {
-			t.Fatalf("expected %v, got %v", e, v)
+			t.Errorf("expected %v, got %v", e, v)
 		}
 	})
 }
@@ -49,7 +49,7 @@ func TestToOrNil(t *testing.T) {
 		var v string
 		pv := pointer.ToOrNil(v)
 		if pv != nil {
-			t.Fatalf("expected nil pointer, got %v", pv)
+			t.Errorf("expected nil pointer, got %v", pv)
 		}
 	})
 
@@ -58,9 +58,9 @@ func TestToOrNil(t *testing.T) {
 		v := "non-zero"
 		pv := pointer.ToOrNil(v)
 		if pv == nil {
-			t.Fatal("expected non-nil pointer")
+			t.Error("expected non-nil pointer")
 		} else if v != *pv {
-			t.Fatalf("expected %v, got %v", v, *pv)
+			t.Errorf("expected %v, got %v", v, *pv)
 		}
 	})
 
@@ -69,9 +69,9 @@ func TestToOrNil(t *testing.T) {
 		v := time.Date(2014, 6, 25, 12, 24, 40, 0, time.UTC)
 		pv := pointer.ToOrNil(v)
 		if pv == nil {
-			t.Fatal("expected non-nil pointer")
+			t.Error("expected non-nil pointer")
 		} else if v != *pv {
-			t.Fatalf("expected %v, got %v", v, *pv)
+			t.Errorf("expected %v, got %v", v, *pv)
 		}
 	})
 
@@ -80,7 +80,7 @@ func TestToOrNil(t *testing.T) {
 		v := time.Time{}
 		pv := pointer.ToOrNil(v)
 		if pv != nil {
-			t.Fatal("expected nil pointer")
+			t.Error("expected nil pointer")
 		}
 	})
 }
