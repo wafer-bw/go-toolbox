@@ -23,7 +23,7 @@ func TestFrom(t *testing.T) {
 
 	t.Run("not nil", func(t *testing.T) {
 		t.Parallel()
-		var pv *bool = new(bool)
+		pv := new(bool)
 		v := pointer.From(pv)
 		if v != *pv {
 			t.Fatalf("expected %v, got %v", *pv, v)
