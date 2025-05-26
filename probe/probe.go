@@ -54,9 +54,9 @@ func (g Group) ProbeAll(ctx context.Context) (map[string]error, bool) {
 // ServeHTTP probes the state of all [Prober] in the group.
 //
 // Response status codes:
-//   - 200 OK (all probes were successful)
+//   - 200 OK                    (all probes were successful)
 //   - 500 Internal Server Error (JSON encoding of the response failed)
-//   - 503 Service Unavailable (one or more probes failed)
+//   - 503 Service Unavailable   (one or more probes failed)
 //
 // The response body is a JSON encoded map[string]string where the key is the
 // probe name and the value is the probe's outcome. A probe state of [OkState]
@@ -73,10 +73,11 @@ func (g Group) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	friendlyResults := make(map[string]string, len(results))
 	for key, err := range results {
-		friendlyResults[key] = OkState
 		if err != nil {
 			friendlyResults[key] = err.Error()
+			continue
 		}
+		friendlyResults[key] = OkState
 	}
 
 	reply, err := json.Marshal(friendlyResults)
