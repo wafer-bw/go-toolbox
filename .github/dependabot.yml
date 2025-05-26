@@ -30,6 +30,15 @@ updates:
           - "*"
 
   - package-ecosystem: "gomod"
+    directory: "/pointer"
+    schedule:
+      interval: "monthly"
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
     directory: "/probe"
     schedule:
       interval: "monthly"

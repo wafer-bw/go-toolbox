@@ -1,0 +1,129 @@
+name: check-pointer
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "pointer/**"
+      - ".github/workflows/pointer.yml"
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - "pointer/**"
+      - ".github/workflows/pointer.yml"
+
+jobs:
+
+  clean:
+    name: clean
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go mod tidy
+        working-directory: pointer
+        run: go mod tidy && git diff --exit-code
+      - name: Run go mod verify
+        working-directory: pointer
+        run: go mod verify
+      - name: Run formatting
+        working-directory: pointer
+        run: go run golang.org/x/tools/cmd/goimports@latest -w . && git diff --exit-code
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go linting
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=4m
+          working-directory: pointer
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run tests
+        working-directory: pointer
+        run: go test -shuffle=on -v -count=1 -race -failfast -timeout=30s -covermode=atomic -coverprofile=coverage.out ./...
+
+  benchmark:
+    name: benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run benchmarks
+        working-directory: pointer
+        run: go test -v -shuffle=on -run=- -bench=. -benchtime=1x -timeout=10s ./...
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    strategy:
+      matrix:
+        go: [stable]
+      fail-fast: true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run go generate
+        working-directory: pointer
+        run: go generate ./... && git diff --exit-code
+      - name: Run go build
+        working-directory: pointer
+        run: go build -o /dev/null ./...
