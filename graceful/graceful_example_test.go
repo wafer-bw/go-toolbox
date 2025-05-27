@@ -39,7 +39,18 @@ func ExampleGroup_Run() {
 	g := graceful.Group{
 		graceful.RunnerType{
 			StartFunc: func(ctx context.Context) error {
-				return s.ListenAndServe()
+				errCh := make(chan error)
+				go func() {
+					errCh <- s.ListenAndServe()
+					close(errCh)
+				}()
+
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case err := <-errCh:
+					return err
+				}
 			},
 			StopFunc: func(ctx context.Context) error {
 				if err := s.Shutdown(ctx); err != nil {
@@ -49,7 +60,6 @@ func ExampleGroup_Run() {
 				return nil
 			},
 		},
-		// TODO: populate with more runners.
 	}
 
 	if err := g.Run(ctx,
@@ -57,6 +67,6 @@ func ExampleGroup_Run() {
 		graceful.WithStopTimeout(1*time.Minute),
 		graceful.WithStoppingCh(stoppingCh),
 	); err != nil {
-		panic(err) // TODO: handle error appropriately.
+		panic(err)
 	}
 }
