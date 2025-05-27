@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/wafer-bw/funcopts"
+	"github.com/wafer-bw/go-toolbox/funcopts"
 )
 
 func TestProcess(t *testing.T) {
