@@ -3,7 +3,7 @@ module github.com/wafer-bw/go-toolbox/graceful
 go 1.24.2
 
 require (
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.16.0
 )
 
