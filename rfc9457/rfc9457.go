@@ -4,6 +4,7 @@ package rfc9457
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 )
@@ -32,6 +33,28 @@ var ReservedKeys = map[string]struct{}{
 // ProblemDetailer describes a type capable of providing a Problem.
 type ProblemDetailer interface {
 	ProblemDetail() Problem
+}
+
+// AsProblem returns the provided error as a Problem.
+//
+// The error is converted to a [Problem] as follows:
+//  1. If the error can be unwrapped to a concrete [Problem] via [errors.As]
+//     then that [Problem] is returned.
+//  2. If the error can be unwrapped to a type implementing [ProblemDetailer]
+//     via [errors.As] then its [ProblemDetailer.ProblemDetail] method is called
+//     and the returned [Problem] is returned.
+//  3. Otherwise an empty Problem and false are returned.
+func AsProblem(err error) (Problem, bool) {
+	var problem Problem
+	var problemDetailer ProblemDetailer
+	switch {
+	case errors.As(err, &problem):
+		return problem, true
+	case errors.As(err, &problemDetailer):
+		return problemDetailer.ProblemDetail(), true
+	default:
+		return Problem{}, false
+	}
 }
 
 // Problem details as defined in RFC 9457.
