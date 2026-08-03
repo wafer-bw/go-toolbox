@@ -31,8 +31,10 @@ var ReservedKeys = map[string]struct{}{
 }
 
 // ProblemDetailer describes a type capable of providing a Problem.
+// a [Problem].
 type ProblemDetailer interface {
 	ProblemDetail() Problem
+	error
 }
 
 // AsProblem returns the provided error as a Problem.
